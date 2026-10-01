@@ -1,0 +1,15 @@
+# LLVM style, with 4-space indentation, and includes left in the order written.
+BasedOnStyle: LLVM
+IndentWidth: 4
+SortIncludes: Never
+
+# Every opening brace on a line of its own: functions, classes, namespaces,
+# control statements.
+BreakBeforeBraces: Allman
+# So that one-line accessors get the same treatment rather than { return x; }
+# on the signature's line.
+AllowShortFunctionsOnASingleLine: None
+
+# Comments are hand-wrapped, and several are aligned tables. Reflowing them
+# turns those into nonsense, so leave comments alone.
+ReflowComments: false
