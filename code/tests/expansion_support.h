@@ -18,7 +18,9 @@
 
 // --- the oracle's view of an expansion ---
 
-template <std::size_t N> inline mpq_class value(const Expansion<N> &e)
+// These take any expansion type -- Expansion<N> or DynamicExpansion --
+// through the two things both have: size() and operator[].
+template <class E> inline mpq_class value(const E &e)
 {
     mpq_class v = 0;
     for (std::size_t i = 0; i < e.size(); ++i)
@@ -29,10 +31,11 @@ template <std::size_t N> inline mpq_class value(const Expansion<N> &e)
 // Nonzero, and each component entirely below the next in its binary digits.
 // Checking neighbours is enough: nonoverlapping is transitive along a list in
 // increasing magnitude.
-template <std::size_t N> inline bool well_formed(const Expansion<N> &e)
+//
+// (Not checked here: that size() is within a fixed capacity. append() asserts
+// that on every component, and the tests keep asserts on.)
+template <class E> inline bool well_formed(const E &e)
 {
-    if (e.size() > N)
-        return false;
     for (std::size_t i = 0; i < e.size(); ++i)
         if (e[i] == 0.0 || !std::isfinite(e[i]))
             return false;
@@ -57,7 +60,7 @@ inline bool power_of_two(double x)
 
 // Nonadjacent: well formed, and no two neighbours touch. What grow(), sum()
 // and scale() produce under round-to-even (Shewchuk's Theorems 10, 12, 19).
-template <std::size_t N> inline bool nonadjacent(const Expansion<N> &e)
+template <class E> inline bool nonadjacent(const E &e)
 {
     for (std::size_t i = 1; i < e.size(); ++i)
         if (touching(e[i - 1], e[i]))
@@ -70,8 +73,7 @@ template <std::size_t N> inline bool nonadjacent(const Expansion<N> &e)
 // of its neighbours. Weaker than nonadjacent. It is what Fast-Expansion-Sum
 // needs of its inputs, and what it promises of its output (Theorem 13), so a
 // fast_sum result can be fed back into fast_sum.
-template <std::size_t N>
-inline bool strongly_nonoverlapping(const Expansion<N> &e)
+template <class E> inline bool strongly_nonoverlapping(const E &e)
 {
     if (!well_formed(e))
         return false;
@@ -87,7 +89,7 @@ inline bool strongly_nonoverlapping(const Expansion<N> &e)
     return true;
 }
 
-template <std::size_t N> inline std::string describe(const Expansion<N> &e)
+template <class E> inline std::string describe(const E &e)
 {
     std::string s = "[";
     for (std::size_t i = 0; i < e.size(); ++i)

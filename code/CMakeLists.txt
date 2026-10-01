@@ -154,6 +154,8 @@ if(RVD_BUILD_TESTS)
         "orient2d  orient2d      -"
         "bounded   bounded       -"
         "orient2d_filter orient2d orient2d_counts"
+        "orient3d  orient3d      -"
+        "dynamic_expansion dynamic_expansion -"
     )
     foreach(entry IN LISTS RVD_KERNEL_SUITES)
         string(REGEX REPLACE " +" ";" entry "${entry}")

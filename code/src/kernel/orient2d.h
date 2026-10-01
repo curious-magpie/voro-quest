@@ -28,11 +28,16 @@
 //                  so the sign is the true sign, and collinear points give
 //                  exactly zero.
 //
-// Step 5 adds a third type: a double that carries a bound on its own rounding
-// error -- the filter. orient2d will try that first and fall back to the
-// expansion only when the bound cannot decide, which on ordinary input is
-// almost never. The formula will not change; that is the point of writing it
-// once.
+//   Bounded        the same text again, as a double that carries a bound on
+//                  its own error (kernel/bounded.h): the filter. When the
+//                  bound proves the sign, that is the answer.
+//
+// orient2d tries the filter first and falls back to the expansions only when
+// the bound cannot decide. On random points the filter decides more than
+// 99.9% of calls (tests/test_orient2d_filter.cpp); what reaches the exact
+// path is what has to -- points a few ulps from collinear, and collinear ones,
+// whose zero no rounded evaluation can certify. The formula did not change to
+// get there: that is the point of writing it once.
 //
 // --- why the differences are taken against c ---
 //
@@ -55,8 +60,16 @@
 // comfortably inside. Mesh and seed coordinates are, and the domain and seed
 // set will check it where they are built.
 #pragma once
+#include "kernel/bounded.h"
 #include "kernel/expansion.h"
+#include "kernel/predicate_counts.h"
 #include <type_traits>
+
+inline PredicateCounts &orient2d_counts()
+{
+    thread_local PredicateCounts counts;
+    return counts;
+}
 
 // The determinant, for any number type with -, * and copy. The return type is
 // whatever the formula produces: a double for doubles, an Expansion<16> for
@@ -72,13 +85,23 @@ auto orient2d_det(const T &ax, const T &ay, const T &bx, const T &by,
 //
 // Each coordinate is made an Expansion<1> -- a double is exactly its own
 // value, so nothing is lost -- and the same template evaluates the
-// determinant exactly. Always the exact path, for now; step 5 puts the filter
-// in front of it. inline because it is a plain function defined in a header:
-// every file that includes this one gets a copy, and inline tells the linker
-// they are all the same function.
+// determinant exactly. That is the exact path, and it is taken only when the
+// filter -- the same template, evaluated with Bounded -- cannot prove the
+// sign; each call counts which of the two decided it. inline because it is a
+// plain function defined in a header: every file that includes this one gets
+// a copy, and inline tells the linker they are all the same function.
 inline int orient2d(double ax, double ay, double bx, double by, double cx,
                     double cy)
 {
+    auto s = certain_sign(orient2d_det(Bounded(ax), Bounded(ay), Bounded(bx),
+                                       Bounded(by), Bounded(cx), Bounded(cy)));
+    if (s)
+    {
+        ++orient2d_counts().filtered;
+        return *s;
+    }
+    ++orient2d_counts().exact;
+
     using E = Expansion<1>;
     const auto det = orient2d_det(E(ax), E(ay), E(bx), E(by), E(cx), E(cy));
     static_assert(std::is_same_v<decltype(det), const Expansion<16>>);
