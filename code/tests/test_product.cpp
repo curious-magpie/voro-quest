@@ -3,8 +3,9 @@
 // evaluated with doubles, expansions or rationals.
 //
 // Each is checked against exact rationals, for its value and for its form:
-// the product goes through fast_sum, so its result is held to fast_sum's
-// contract, strongly nonoverlapping.
+// the product is a chain of sums of scaled copies, each step a theorem
+// (Theorem 19 for scale, Theorem 24 for linear_sum), so its result is well
+// formed. Which sum product() uses is checked in test_linear_sum.cpp.
 #include <cmath>
 #include <random>
 #include <string>
@@ -37,7 +38,7 @@ void test_fit()
 
 void test_product()
 {
-    Tally exact_ok, form_ok, apart_ok;
+    Tally exact_ok, form_ok;
     std::mt19937_64 rng(31);
     for (int i = 0; i < 20000; ++i)
     {
@@ -51,11 +52,9 @@ void test_product()
         const std::string ex = describe(a) + " * " + describe(b);
         exact_ok.add(value(p) == va * vb, ex);
         form_ok.add(well_formed(p), ex);
-        apart_ok.add(strongly_nonoverlapping(p), ex);
     }
     exact_ok.report("product: exactly a * b");
     form_ok.report("product: well formed");
-    apart_ok.report("product: strongly nonoverlapping");
 
     static_assert(std::is_same_v<decltype(product(Expansion<4>(), Expansion<3>())),
                                  Expansion<24>>,
@@ -94,10 +93,10 @@ void test_operators()
 
     static_assert(std::is_same_v<decltype(Expansion<3>() + Expansion<2>()),
                                  Expansion<5>>,
-                  "+ is fast_sum");
+                  "+ has capacity M + N");
     static_assert(std::is_same_v<decltype(Expansion<3>() - Expansion<2>()),
                                  Expansion<5>>,
-                  "- is fast_sum with a negation");
+                  "- has capacity M + N");
     static_assert(std::is_same_v<decltype(Expansion<3>() * Expansion<2>()),
                                  Expansion<12>>,
                   "* of two expansions is product");

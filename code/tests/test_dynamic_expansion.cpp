@@ -2,9 +2,9 @@
 // and compress, against exact rationals and against the fixed Expansion<N>.
 //
 // The operations are the fixed ones' algorithms on runtime lengths, so they
-// are held to the same contracts -- exact, well formed, and fast_sum's strong
-// nonoverlap -- and to the same values as the fixed versions on the same
-// inputs. What is new is checked on its own:
+// are held to the same contracts -- exact, well formed, nonadjacent where
+// Shewchuk proves it -- and to the same values as the fixed versions on the
+// same inputs. What is new is checked on its own:
 //
 //   storage   past the 32 inline components, onto the heap and back through
 //             copies, which must stay independent of each other
@@ -46,7 +46,8 @@ bool top_is_close(const D &e, const mpq_class &v)
 
 void test_construction_and_storage()
 {
-    check(D().size() == 0 && sign(D()) == 0, "a default DynamicExpansion is zero");
+    check(D().size() == 0 && sign(D()) == 0,
+          "a default DynamicExpansion is zero");
     check(D(0.0).size() == 0 && D(-3.5).size() == 1 && D(-3.5)[0] == -3.5,
           "from a double: one component, none for zero");
     const TwoTerm t = two_sum(1.0, std::ldexp(1.0, -70));
@@ -83,7 +84,8 @@ void test_construction_and_storage()
     check(small.size() == 1 && small_copy.size() == 2,
           "appending to an inline copy leaves the original alone");
     D moved = std::move(copy);
-    check(moved.size() == 101 && value(moved) == bigv + exact(std::ldexp(1.0, 600)),
+    check(moved.size() == 101 &&
+              value(moved) == bigv + exact(std::ldexp(1.0, 600)),
           "a moved expansion keeps its components");
 }
 
@@ -109,9 +111,8 @@ void test_operations()
                          value(p) == va * exact(d) && value(q) == va * vb &&
                          value(n) == -va,
                      ex);
-        form_ok.add(nonadjacent(g) && strongly_nonoverlapping(s) &&
-                        nonadjacent(p) && strongly_nonoverlapping(q) &&
-                        nonadjacent(n),
+        form_ok.add(nonadjacent(g) && well_formed(s) && nonadjacent(p) &&
+                        well_formed(q) && nonadjacent(n),
                     ex);
         same_as_fixed.add(value(s) == value(fast_sum(fa, fb)) &&
                               value(q) == value(product(fa, fb)) &&
@@ -119,7 +120,8 @@ void test_operations()
                               approximate(s) == approximate(fast_sum(fa, fb)),
                           ex);
     }
-    exact_ok.report("dynamic: grow, fast_sum, scale, product, negate are exact");
+    exact_ok.report(
+        "dynamic: grow, fast_sum, scale, product, negate are exact");
     form_ok.report("dynamic: each result has its operation's form");
     same_as_fixed.report("dynamic: the same values as the fixed Expansion<N>");
 
@@ -128,11 +130,11 @@ void test_operations()
     D a = dyn(build<12>(rng, va)), b = dyn(build<12>(rng, vb));
     for (int k = 0; k < 3; ++k)
     {
-        a = fast_sum(a, scale(a, 3.0 + k));
+        a = a + scale(a, 3.0 + k);
         va += va * (3 + k);
     }
     const D q = product(a, b);
-    check(value(q) == va * vb && strongly_nonoverlapping(q),
+    check(value(q) == va * vb && well_formed(q),
           "a product of long expansions, on the heap, is exact");
 }
 
@@ -157,7 +159,8 @@ void test_compress()
     exact_ok.report("compress: the same value");
     form_ok.report("compress: the result is nonadjacent");
     shorter.report("compress: never longer than its input");
-    close.report("compress: the largest component is within an ulp of the value");
+    close.report(
+        "compress: the largest component is within an ulp of the value");
 
     check(compress(D()).size() == 0, "compress of zero is zero");
     check(compress(D(2.5)).size() == 1, "compress of one component is itself");
@@ -195,6 +198,152 @@ void test_operators()
     compressed.report("dynamic operators: * returns the compressed product");
 }
 
+// +-2^e, the sign at random.
+double signed_power(std::mt19937_64 &rng, int e)
+{
+    return (rng() & 1) ? -std::ldexp(1.0, e) : std::ldexp(1.0, e);
+}
+
+// A strongly nonoverlapping expansion that is *not* nonadjacent: at least one
+// pair of touching powers of two, +-2^k and +-2^(k+1), the one kind of
+// adjacency strong nonoverlap allows. The other components have up to 8
+// bits, and every gap but a pair's is at least one bit, so no component
+// touches two neighbours. This is what a fast_sum result may look like, and
+// what random inputs almost never produce: a grown expansion is nonadjacent.
+D touching_pairs(std::mt19937_64 &rng, mpq_class &sum)
+{
+    D e;
+    int low = -100 + int(rng() % 20); // lowest bit of the next component
+    const int n = 2 + int(rng() % 5);
+    bool paired = false;
+    for (int i = 0; i < n; ++i)
+    {
+        if ((rng() & 1) || (i == n - 1 && !paired))
+        {
+            e.append(signed_power(rng, low));
+            e.append(signed_power(rng, low + 1));
+            low += 2;
+            paired = true;
+        }
+        else
+        {
+            // An odd k-bit integer, so its bits are exactly low .. low+k-1.
+            const int k = 1 + int(rng() % 8);
+            const double m =
+                double((1u << (k - 1)) | (rng() & ((1u << k) - 1)) | 1u);
+            e.append((rng() & 1) ? -std::ldexp(m, low) : std::ldexp(m, low));
+            low += k;
+        }
+        low += 1 + int(rng() % 4);
+    }
+    sum = value(e);
+    return e;
+}
+
+// An expansion from its components, smallest first.
+D components(std::initializer_list<double> cs)
+{
+    D e;
+    for (double c : cs)
+        e.append(c);
+    return e;
+}
+
+// The inputs that Shewchuk's theorems leave open: strongly nonoverlapping,
+// with touching components, as fast_sum results may be. Theorem 19 promises
+// scale() only nonoverlapping output for those, and these inputs show that
+// strong nonoverlap can indeed be lost -- by scale(), and by fast_sum itself
+// (the two pinned examples at the end). So the checks here are of three
+// kinds, labelled as such:
+//
+//   evidence  what a predicate needs, on chains the theorems do not cover:
+//             exact, nonoverlapping in increasing magnitude (well_formed),
+//             and so the right sign. Not a theorem; a failure here is a
+//             counterexample that matters, and is worth keeping. The chains
+//             call fast_sum by name, so they stay a record of fast_sum now
+//             that the operators sum with linear_sum.
+//   contract  a * b ends in compress, so it is nonadjacent (Theorem 23);
+//             a * d is a scale, so it is well formed (Theorem 19) but, for
+//             these inputs, not necessarily nonadjacent.
+//   pinned    the two counterexamples to strong nonoverlap found by this
+//             test (2026-10-01), kept as fixed inputs so they stay on record.
+//             If one of these starts failing, the arithmetic changed: look.
+void test_touching_inputs()
+{
+    Tally generator, exact_ok, evidence, operators;
+    std::mt19937_64 rng(84);
+    for (int i = 0; i < 100000; ++i)
+    {
+        mpq_class va, vc;
+        const D a = touching_pairs(rng, va), c = touching_pairs(rng, vc);
+        // Few-bit factors as well as full ones: they make carries line up.
+        const double d = (i % 2) ? random_double(rng, -100, 100)
+                                 : double(int(rng() % 31) - 15);
+        const std::string ex =
+            describe(a) + ", " + describe(c) + ", d = " + show(d);
+        generator.add(strongly_nonoverlapping(a) && !nonadjacent(a), ex);
+
+        const D s = scale(a, d);
+        const D f = fast_sum(s, c);
+        const D p = product(a, c);
+        // A chain of raw sums of raw scales, never compressed.
+        D chain = f;
+        mpq_class vchain = va * exact(d) + vc;
+        for (int k = 0; k < 4; ++k)
+        {
+            chain = fast_sum(scale(chain, d), c);
+            vchain = vchain * exact(d) + vc;
+        }
+        exact_ok.add(value(s) == va * exact(d) && value(f) == value(s) + vc &&
+                         value(p) == va * vc && value(chain) == vchain &&
+                         value(a * c) == va * vc &&
+                         value(a * d) == va * exact(d),
+                     ex);
+        evidence.add(well_formed(s) && well_formed(f) && well_formed(p) &&
+                         well_formed(chain) && sign(chain) == sgn(vchain),
+                     ex);
+        operators.add(nonadjacent(a * c) && well_formed(a * d), ex);
+    }
+    generator.report("touching inputs: strongly nonoverlapping, not "
+                     "nonadjacent");
+    exact_ok.report("touching inputs: scale, fast_sum, product, * are exact");
+    evidence.report("evidence: raw chains stay nonoverlapping, right sign");
+    operators.report("contract: a * b nonadjacent, a * d well formed");
+
+    // scale() of a strongly nonoverlapping expansion (three touching pairs of
+    // powers of two) by a 53-bit double: the result has a power of two,
+    // 2^-64, touching a 52-bit component. Nonoverlapping, as Theorem 19
+    // promises, but not strongly.
+    const D a1 =
+        components({0x1p-82, -0x1p-81, -0x1p-79, -0x1p-78, -0x1p-76, 0x1p-75});
+    const double d1 = 36256385392834236416.0;
+    const D s1 = scale(a1, d1);
+    check(strongly_nonoverlapping(a1) && well_formed(s1) &&
+              value(s1) == value(a1) * exact(d1) &&
+              !strongly_nonoverlapping(s1),
+          "pinned: scale can lose strong nonoverlap");
+
+    // fast_sum of a nonadjacent and a strongly nonoverlapping expansion --
+    // both valid inputs for Theorem 13 -- whose result has -2^-141 adjacent
+    // to a 5-bit component (bits -140 .. -136). Traced by hand: the carry
+    // drops -2^-141 as an error, then cancels against the 53-bit component
+    // down to a lowest bit of -140, and its next error lands just above.
+    // Theorem 13 promises a strongly nonoverlapping result. Checked against
+    // the paper's statement and section 2.3's definitions (read 2026-10-01),
+    // and replayed independently with Python floats: every hypothesis holds
+    // and the conclusion does not, so this is a counterexample to Theorem 13
+    // as stated. The merge has no ties, so the output is the algorithm's.
+    const D s2 = components({8.5528470722950261e-48, -3.941151930913548e-46,
+                             -1.4012984643248171e-44, -3.1389085600875902e-43,
+                             4.4881243107836986e-27});
+    const D c2 = components({-0x1p-89, -0x1p-88, -3.1019272970738538e-25});
+    const D f2 = fast_sum(s2, c2);
+    check(nonadjacent(s2) && strongly_nonoverlapping(c2) && well_formed(f2) &&
+              value(f2) == value(s2) + value(c2) &&
+              !strongly_nonoverlapping(f2),
+          "pinned: fast_sum can lose strong nonoverlap");
+}
+
 } // namespace
 
 int main()
@@ -203,5 +352,6 @@ int main()
     test_operations();
     test_compress();
     test_operators();
+    test_touching_inputs();
     return report_checks();
 }

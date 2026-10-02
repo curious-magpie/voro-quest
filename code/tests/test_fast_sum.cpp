@@ -3,14 +3,19 @@
 //
 // fast_sum has to give the same *value* as sum -- not necessarily the same
 // components, since the two algorithms carry differently -- and a well formed
-// expansion. Its form is also checked against its own contract (Shewchuk's
-// Theorem 13): strongly nonoverlapping inputs give a strongly nonoverlapping
-// output. That is a weaker form than the nonadjacent one sum() produces, and
-// exactly what lets fast_sum's results be fed back into it. A sum of many
-// expansions, done as a tree of fast_sums, is the test of that.
+// expansion. That much is Shewchuk's Lemma 16, for strongly nonoverlapping
+// inputs, and every input here is one: grow(), sum() and scale() give
+// nonadjacent results.
 //
-// Inputs come from grow(), sum() and scale() -- every way an expansion is
-// made -- and from fast_sum itself.
+// What is *not* checked any more is Theorem 13's further promise, that the
+// result is strongly nonoverlapping again: it is false
+// (test_dynamic_expansion.cpp pins a counterexample). So a fast_sum result is
+// not known to be a valid input to the next fast_sum, and the operators sum
+// with linear_sum instead (test_linear_sum.cpp). fast_sum stays, as the
+// algorithm the counterexample is about. The tree below feeds fast_sum its own
+// results anyway; it is evidence, not a theorem.
+//
+// Inputs come from grow(), sum() and scale().
 #include <cmath>
 #include <random>
 #include <string>
@@ -24,7 +29,7 @@ namespace
 // have and the value sum() gives.
 struct Checks
 {
-    Tally exact, form, apart, agrees;
+    Tally exact, form, agrees;
 
     template <std::size_t M, std::size_t N>
     void run(const Expansion<M> &a, const Expansion<N> &b)
@@ -34,7 +39,6 @@ struct Checks
         const mpq_class want = value(a) + value(b);
         exact.add(value(f) == want, ex);
         form.add(well_formed(f), ex);
-        apart.add(strongly_nonoverlapping(f), ex);
         agrees.add(value(f) == value(sum(a, b)), ex);
     }
 
@@ -42,8 +46,6 @@ struct Checks
     {
         exact.report(("fast_sum, " + what + ": exactly a + b").c_str());
         form.report(("fast_sum, " + what + ": well formed").c_str());
-        apart.report(
-            ("fast_sum, " + what + ": strongly nonoverlapping").c_str());
         agrees.report(("fast_sum, " + what + ": the value sum() gives").c_str());
     }
 };
@@ -105,11 +107,13 @@ void test_edges()
 }
 
 // Sixteen expansions summed as a balanced tree of fast_sums: every level's
-// inputs are the previous level's outputs, so a result that is not a valid
-// input breaks the level above it.
+// inputs are the previous level's outputs. Only the first level is covered by
+// a theorem (Lemma 16); above it the inputs are fast_sum results, which
+// Theorem 13 was meant to cover. Evidence, then: no failure here has been
+// seen, but none is ruled out.
 void test_tree()
 {
-    Tally exact, form, apart;
+    Tally exact, form;
     std::mt19937_64 rng(23);
     for (int i = 0; i < 2000; ++i)
     {
@@ -133,11 +137,9 @@ void test_tree()
 
         exact.add(value(top) == want, describe(top));
         form.add(well_formed(top), describe(top));
-        apart.add(strongly_nonoverlapping(top), describe(top));
     }
-    exact.report("fast_sum tree: exactly the sum of sixteen expansions");
-    form.report("fast_sum tree: well formed");
-    apart.report("fast_sum tree: strongly nonoverlapping");
+    exact.report("evidence: fast_sum tree, exactly the sum of sixteen");
+    form.report("evidence: fast_sum tree, well formed");
 }
 
 } // namespace

@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cmath>
+#include <cstdint>
 #include <random>
 #include <string>
 
@@ -71,8 +72,10 @@ template <class E> inline bool nonadjacent(const E &e)
 // Strongly nonoverlapping (Shewchuk, section 2.3): well formed, and where two
 // neighbours do touch, both are powers of two, and no component touches both
 // of its neighbours. Weaker than nonadjacent. It is what Fast-Expansion-Sum
-// needs of its inputs, and what it promises of its output (Theorem 13), so a
-// fast_sum result can be fed back into fast_sum.
+// needs of its inputs. Theorem 13 says it is also what Fast-Expansion-Sum
+// gives back, but that is false: test_dynamic_expansion.cpp pins a
+// counterexample. So a fast_sum result is not known to be a valid input to
+// another fast_sum, which is why the operators sum with linear_sum.
 template <class E> inline bool strongly_nonoverlapping(const E &e)
 {
     if (!well_formed(e))
@@ -86,6 +89,18 @@ template <class E> inline bool strongly_nonoverlapping(const E &e)
         if (i + 1 < e.size() && touching(e[i], e[i + 1]))
             return false;
     }
+    return true;
+}
+
+// The same components, one for one: for checking that two computations are
+// the same algorithm, not only the same value.
+template <class A, class B> inline bool same_components(const A &a, const B &b)
+{
+    if (a.size() != b.size())
+        return false;
+    for (std::size_t i = 0; i < a.size(); ++i)
+        if (a[i] != b[i])
+            return false;
     return true;
 }
 
@@ -144,4 +159,36 @@ Expansion<K> build(std::mt19937_64 &rng, mpq_class &sum)
         sum += exact(b);
         return grow(e, b);
     }
+}
+
+// A nonoverlapping expansion of K components that is usually *not* strongly
+// nonoverlapping, and the exact value of it. Each component is an odd integer
+// of 1 to `bits` bits, shifted into place, and the gap above it is 0, 1 or 2
+// bits, so neighbours often touch with many bits each -- [1023.5, 1024] is
+// this shape. Every Expansion may look like this: the invariant is only
+// nonoverlapping. grow() never makes one (its results are nonadjacent), and
+// fast_sum is not promised to handle one; linear_sum is (Theorem 24).
+//
+// The lowest bit starts near 2^-150 and each component takes at most
+// bits + 2 positions, so K * (bits + 2) must stay below about 1000 for the
+// top to remain a finite double. The suites keep it under 600, which also
+// keeps products and scalings by up to 2^+-100 within eft.h's range.
+template <std::size_t K>
+Expansion<K> dense(std::mt19937_64 &rng, mpq_class &sum, int bits = 53)
+{
+    Expansion<K> e;
+    int low = -150 + int(rng() % 50); // lowest bit of the next component
+    for (std::size_t i = 0; i < K; ++i)
+    {
+        const int k = 1 + int(rng() % bits);
+        // An odd k-bit integer: its bits are exactly 0 .. k-1. Below 2^53,
+        // so it is a double, and ldexp shifts it exactly.
+        const std::uint64_t top = std::uint64_t(1) << (k - 1);
+        const std::uint64_t m = top | (rng() & (top - 1)) | 1;
+        const double c = std::ldexp(double(m), low);
+        e.append((rng() & 1) ? -c : c);
+        low += k + int(rng() % 3);
+    }
+    sum = value(e);
+    return e;
 }

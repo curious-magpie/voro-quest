@@ -150,12 +150,18 @@ if(RVD_BUILD_TESTS)
         "eft       eft           -"
         "expansion expansion     -"
         "fast_sum  expansion     fast_sum"
+        "linear_sum expansion    linear_sum"
         "product   expansion     product"
         "orient2d  orient2d      -"
         "bounded   bounded       -"
         "orient2d_filter orient2d orient2d_counts"
         "orient3d  orient3d      -"
         "dynamic_expansion dynamic_expansion -"
+        "dynamic_linear_sum dynamic_expansion linear_sum"
+        "side1     side          side1"
+        "side2     side          side2"
+        "side3     side          side3"
+        "side4     side          side4"
     )
     foreach(entry IN LISTS RVD_KERNEL_SUITES)
         string(REGEX REPLACE " +" ";" entry "${entry}")

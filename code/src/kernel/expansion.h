@@ -55,6 +55,7 @@
 //   grow(Expansion<N>, double)            -> Expansion<N + 1>
 //   sum(Expansion<M>, Expansion<N>)       -> Expansion<M + N>
 //   fast_sum(Expansion<M>, Expansion<N>)  -> Expansion<M + N>
+//   linear_sum(Expansion<M>, Expansion<N>) -> Expansion<M + N>
 //   scale(Expansion<N>, double)           -> Expansion<2 * N>
 //   product(Expansion<M>, Expansion<N>)   -> Expansion<2 * M * N>
 //   negate(Expansion<N>)                  -> Expansion<N>
@@ -327,8 +328,12 @@ template <std::size_t N> double approximate(const Expansion<N> &e)
 // sum() grows a by each component of b separately: one full carry pass per
 // component, O(m * n). This merges the two expansions into one list ordered
 // by magnitude -- the merge step of merge sort -- and runs a single carry
-// pass up it, as grow() does: O(m + n). Every exact sum of two expansions in
-// a predicate is this one.
+// pass up it, as grow() does: O(m + n).
+//
+// It is no longer the sum the operators use; linear_sum below is, for the
+// reason in the last paragraph but one. fast_sum stays because it is
+// Shewchuk's fast path, and because it is what the counterexample in
+// tests/test_dynamic_expansion.cpp is about.
 //
 // The merged list is not an expansion: a component of a and one of b can
 // share bits. That one carry pass still produces a valid expansion is the
@@ -342,10 +347,16 @@ template <std::size_t N> double approximate(const Expansion<N> &e)
 //   touches both its neighbours. grow(), sum() and scale() produce more than
 //   that (nonadjacent: no neighbours touch at all), so their results qualify.
 //
-// The result is strongly nonoverlapping too, but not necessarily nonadjacent:
-// enough to be fed back into fast_sum, and to everything else here, which
-// needs only nonoverlapping. tests/test_fast_sum.cpp checks exactly this
-// contract, including on a tree of fast_sums whose every level eats the last.
+// The result is nonoverlapping (Shewchuk's Lemma 16), which is all the rest
+// of this file needs. Theorem 13 promises more, a strongly nonoverlapping
+// result, so that it could be fed back into fast_sum; that promise is false.
+// The proof skips the case where an exact step, with a zero error, sits
+// between two output components (his footnote 5: "Trust me"), and in that
+// case a cancellation can carry low bits up into a later component:
+// [-1, -4, -2^53] + [2^53 + 10] gives [-1, 6], and 6 touches -1 without
+// being a power of two. So a fast_sum result is a valid expansion, but not a
+// known-valid input to another fast_sum, and a chain of them -- every product,
+// every a + b + c -- would rest on a step nobody has proved.
 //
 // The carry pass starts with fast_two_sum: after the merge, g[1] is at least
 // as large as g[0], so its precondition holds. From then on the carry gathers
@@ -407,6 +418,94 @@ Expansion<M + N> fast_sum(const Expansion<M> &a, const Expansion<N> &b)
     return res;
 }
 
+// a + b, exactly, in one pass. Shewchuk's Linear-Expansion-Sum (Theorem 24,
+// his Appendix A), keeping no zeros. The sum the operators and product() use.
+//
+// The same merge as fast_sum, then a carry pass that keeps the running total
+// as two doubles instead of one: Q, the rounded total, and q, the error of
+// the last step, held back for one more step instead of being output at
+// once. Each new component g[k] first takes in q, and only what is left over
+// from that (r.lo) becomes a final component; the rest (r.hi) goes into Q,
+// whose new error is the next q. In the paper's words, the fast_two_sum is
+// there "to clip a high-order bit off each q term, if necessary, before
+// outputting it". At the end, q and then Q are the two largest components.
+//
+// What this buys is the precondition: nonoverlapping inputs, which every
+// Expansion is, give a nonoverlapping result, under any tie-breaking rule.
+// So a linear_sum result can be fed back into linear_sum, or into anything
+// else here, and a chain of them is a theorem at every step -- which fast_sum
+// can no longer claim (see above). The price is one fast_two_sum more per
+// component, about half again fast_sum's work; the exact path only runs when
+// the filter cannot decide, so this is not where the time goes.
+//
+// Both fast_two_sums meet their precondition. The first, as in fast_sum,
+// because the merge puts g[1] above g[0]. The one in the loop because q is
+// the error of a rounding, at most half an ulp of Q, and Shewchuk's proof
+// keeps Q close enough to g[k] that |q| <= ulp(g[k]) <= |g[k]|. The asserts
+// in fast_two_sum check both in the tests.
+//
+// The paper's version starts by reading g[1] and g[0], so it assumes two
+// components at least; with one, that one is the sum.
+template <std::size_t M, std::size_t N>
+Expansion<M + N> linear_sum(const Expansion<M> &a, const Expansion<N> &b)
+{
+    std::array<double, M + N> g{};
+    std::size_t i = 0, j = 0, n = 0;
+    // 1. merge, exactly as in fast_sum: ties go to b, and the dynamic version
+    // must break them the same way to give the same components
+    while (i < a.size() && j < b.size())
+    {
+        if (std::abs(a[i]) < std::abs(b[j]))
+        {
+            g[n] = a[i];
+            i++;
+        }
+        else
+        {
+            g[n] = b[j];
+            j++;
+        }
+        n++;
+    }
+    for (std::size_t ci = i; ci < a.size(); ci++)
+    {
+        g[n] = a[ci];
+        n++;
+    }
+    for (std::size_t cj = j; cj < b.size(); cj++)
+    {
+        g[n] = b[cj];
+        n++;
+    }
+
+    // 2. the carry pass, with the running total t0 = Q + q
+    Expansion<M + N> res;
+    if (n == 0)
+    {
+        return res;
+    }
+    if (n == 1)
+    {
+        res.append(g[0]);
+        return res;
+    }
+    TwoTerm t0 = fast_two_sum(g[1], g[0]); // t0.hi is Q, t0.lo is q
+    // k < g.size() is always true when k < n; it is there for GCC, whose
+    // -Warray-bounds cannot see that (it warns on fast_sum's loop without it,
+    // for a capacity of 2).
+    for (std::size_t k = 2; k < n && k < g.size(); k++)
+    {
+        TwoTerm t1 = fast_two_sum(g[k], t0.lo); // g[k] takes in q
+        res.append(t1.lo);                      // final: below all that follows
+        TwoTerm t2 = two_sum(t0.hi, t1.hi);     // the rest goes into Q
+        t0.hi = t2.hi;
+        t0.lo = t2.lo;
+    }
+    res.append(t0.lo); // q, then Q: smallest first
+    res.append(t0.hi);
+    return res;
+}
+
 // e, moved into an Expansion<K> -- which may be smaller than e's capacity.
 //
 // The one narrowing, and checked at runtime: it asserts that e's components
@@ -431,16 +530,19 @@ template <std::size_t K, std::size_t N> Expansion<K> fit(const Expansion<N> &e)
 }
 
 // a * b, exactly, for two expansions: the sum over b's components of
-// scale(a, b[j]), accumulated with fast_sum.
+// scale(a, b[j]), accumulated with linear_sum.
 //
-// The accumulator would grow by a type with every term -- fast_sum returns a
-// larger capacity than its inputs -- so each partial sum is brought back to
+// The accumulator would grow by a type with every term -- linear_sum returns
+// a larger capacity than its inputs -- so each partial sum is brought back to
 // the final capacity with fit. That is safe because the bound is real: each
-// scale() gives at most 2M components and fast_sum never gives more than its
-// inputs together, so after j + 1 terms there are at most 2M(j + 1) <= 2MN.
+// scale() gives at most 2M components and linear_sum never gives more than
+// its inputs together, so after j + 1 terms there are at most
+// 2M(j + 1) <= 2MN.
 //
-// fast_sum's precondition holds at every step: the accumulator is a fast_sum
-// result (strongly nonoverlapping) and each scale() result is nonadjacent.
+// Every step is a theorem: scale() of a nonoverlapping a is nonoverlapping
+// (Theorem 19), and so is linear_sum of two nonoverlapping expansions
+// (Theorem 24). With fast_sum here, the accumulator -- a fast_sum result fed
+// back into fast_sum -- was exactly the unproven case.
 // Exact within scale()'s range: the components' products must stay above
 // 2^-969 (see eft.h).
 //
@@ -454,7 +556,7 @@ Expansion<2 * M * N> product(const Expansion<M> &a, const Expansion<N> &b)
     Expansion<2 * M * N> acc;
     for (std::size_t j = 0; j < b.size(); j++)
     {
-        acc = fit<2 * M * N>(fast_sum(acc, scale(a, b[j])));
+        acc = fit<2 * M * N>(linear_sum(acc, scale(a, b[j])));
     }
     return acc;
 }
@@ -470,8 +572,8 @@ Expansion<2 * M * N> product(const Expansion<M> &a, const Expansion<N> &b)
 //
 // Each operator is one exact operation, with that operation's capacity:
 //
-//   a + b   fast_sum(a, b)            Expansion<M + N>
-//   a - b   fast_sum(a, negate(b))    Expansion<M + N>
+//   a + b   linear_sum(a, b)          Expansion<M + N>
+//   a - b   linear_sum(a, negate(b))  Expansion<M + N>
 //   -a      negate(a)                 Expansion<N>
 //   a * b   product(a, b)             Expansion<2 * M * N>
 //   a * d   scale(a, d), d a double   Expansion<2 * N>
@@ -482,13 +584,13 @@ Expansion<2 * M * N> product(const Expansion<M> &a, const Expansion<N> &b)
 template <std::size_t N, std::size_t M>
 Expansion<M + N> operator+(const Expansion<N> &a, const Expansion<M> &b)
 {
-    return fast_sum(a, b);
+    return linear_sum(a, b);
 }
 
 template <std::size_t N, std::size_t M>
 Expansion<M + N> operator-(const Expansion<N> &a, const Expansion<M> &b)
 {
-    return fast_sum(a, negate(b));
+    return linear_sum(a, negate(b));
 }
 
 template <std::size_t N, std::size_t M>
