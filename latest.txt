@@ -1,0 +1,88 @@
+I reviewed side1_sos: it's correct, and its suite passes (16 of 16).
+- It calls side1 first, so the filter and exact counters still count once per call.
+- perturbed is incremented only on a tie.
+- The direction is right: i < m gives −1, so the smaller index wins.
+- <cassert> and <cstdint> are both included now.
+
+It has no comment yet. I can add one when we document the _sos functions together.
+
+Spec: side2_sos
+
+What it computes. side2 on the perturbed input. It never returns 0.
+
+The math (arithmetic.pdf §8.4). Every f_ia shifts by ε_a − ε_i. Write a = ε_m − ε_i and b = ε_j − ε_i. The numerator becomes
+
+(m0 + a)(j1 + b) − (m1 + a)(j0 + b)  =  N + a·(j1 − j0) + b·(m0 − m1)        (the a·b terms cancel)
+                                     =  N + ε_m·D + ε_j·(m0 − m1) − ε_i·(D + m0 − m1)
+
+with D = j1 − j0, the denominator, which doesn't change. So, at a tie (N = 0):
+
+┌──────┬────────────────┐
+│ seed │  coefficient   │
+├──────┼────────────────┤
+│ m    │ D              │
+├──────┼────────────────┤
+│ j    │ m0 − m1        │
+├──────┼────────────────┤
+│ i    │ −(D + m0 − m1) │
+└──────┴────────────────┘
+
+The answer is sign(D) × the sign of the first nonzero coefficient, taking the seeds by increasing index. One always exists, because m's coefficient is D ≠ 0.
+
+1. A shared helper. side3_sos and side4_sos will reuse it.
+#include <algorithm>   // std::sort
+#include <array>
+
+// One seed's coefficient in the perturbed numerator: its index, and the
+// coefficient's exact sign.
+struct Coefficient
+{
+    std::uint32_t index;
+    int sign;
+};
+
+template <std::size_t K>
+int first_nonzero(std::array<Coefficient, K> c)       // by value: we
+{
+    std::sort(c.begin(), c.end(),
+              [](const Coefficient &a, const Coefficient &b)
+              { return a.index < b.index; });         // smaller index
+    for (const Coefficient &x : c)
+        if (x.sign != 0) -> return x.sign
+    assert(false);   // cannot happen: m's coefficient is ±D, never 0
+    return 0;
+}
+- template <std::size_t K> lets the compiler deduce the array's size fn side3, 5 in side4.
+- The third argument of std::sort is a comparator: a lambda that returns true when a should come before b.
+
+2. The predicate:
+inline int side2_sos(std::uint32_t i, const glm::dvec3 &pi, double wi,
+                     std::uint32_t j, const glm::dvec3 &pj, double wj,
+                     std::uint32_t m, const glm::dvec3 &pm, double wm,
+                     const glm::dvec3 &q0, const glm::dvec3 &q1)
+{
+    const int s = side2(pi, wi, pj, wj, pm, wm, q0, q1);
+    if (s != 0)  -> return s
+    ++side2_counts().perturbed;
+    using D = DynamicExpansion;          // a type alias, to keep line
+    const D m0 = bisector_value<D>(pi, wi, pm, wm, q0);
+    ... m1 (q1); j0, j1 with pj, wj
+    const D den = j1 - j0;
+    const D e = m0 - m1;
+    const int sd = sign(den);
+    return sd * first_nonzero<3>({{{m, sd}, {j, sign(e)}, {i, -sign(den + e)}}});
+}
+The triple braces are one pair for the function call's argument, one fand one per element. If they confuse you, build the array first,std::array<Coefficient, 3> c{{{m, sd}, {j, sign(e)}, {i, -sign(den + eo(c).
+
+The type alias D is local to this function. You can't use D as a variable name inside it, which is why the denominator is called den here.
+
+Traps:
+1. Multiply by sign(D) at the end. The coefficients give the sign of tnswer is the ratio's sign. Dropping it was one of the broken variants I
+   validated against.
+2. i's coefficient is −(D + m0 − m1). Add the two exactly first, then . It is not -(sign(den) + sign(e)).
+3. e = m0 − m1, in that order, matching the derivation.
+4. Compute the coefficients exactly with DynamicExpansion, not with Bont that is truly 0 must come out as 0, or the chain stops at roundingnoise. The scaled-lattice checks catch a doubles version.
+5. Count only ties, as in side1_sos: increment perturbed after the ear
+6. Argument order is (index, point, weight) for i, j, m, then q0, q1.
+
+Then build and run ./build/rvd-tests-side2_sos; it should report 14 checks.
