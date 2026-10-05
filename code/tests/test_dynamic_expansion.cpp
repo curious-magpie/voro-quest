@@ -329,10 +329,10 @@ void test_touching_inputs()
     // drops -2^-141 as an error, then cancels against the 53-bit component
     // down to a lowest bit of -140, and its next error lands just above.
     // Theorem 13 promises a strongly nonoverlapping result. Checked against
-    // the paper's statement and section 2.3's definitions (read 2026-10-01),
-    // and replayed independently with Python floats: every hypothesis holds
-    // and the conclusion does not, so this is a counterexample to Theorem 13
-    // as stated. The merge has no ties, so the output is the algorithm's.
+    // the paper's statement and definitions (sections 2.1 and 2.4; read
+    // 2026-10-01), and replayed independently with Python floats: every
+    // hypothesis holds and the conclusion does not, so this is a
+    // counterexample to Theorem 13 as stated. The merge has no ties, so the output is the algorithm's.
     const D s2 = components({8.5528470722950261e-48, -3.941151930913548e-46,
                              -1.4012984643248171e-44, -3.1389085600875902e-43,
                              4.4881243107836986e-27});

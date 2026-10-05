@@ -25,6 +25,7 @@
 #pragma once
 
 #include <cmath>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <random>
@@ -42,6 +43,7 @@ struct Site
 {
     glm::dvec3 p;
     double w = 0.0;
+    std::uint32_t id = 0; // the seed's index; only the perturbed suites use it
 };
 
 struct Case
@@ -363,18 +365,21 @@ struct SideTally
 //   nudged     a tie moved by one ulp: tiny nonzero answers; these must reach
 //              the exact path, and doubles must get some of them wrong
 //
-// The thresholds were measured on a reference implementation when the suites
-// were written (2026-10-01), and set below what it reached:
+// The thresholds were set when the suites were written (2026-10-01), below
+// what a throwaway reference implementation reached. What the actual side.h
+// reaches on these families and seeds, measured by tests/measure_side.cpp
+// (build/rvd-measure-side) on 2026-10-05, deterministic:
 //
-//                filter on random   lattice ties   nudged reach exact
-//   side1        100%               4.8%           89%
-//   side2        100%               3.1%           92%
-//   side3        98.1%              2.8%           91%
-//   side4        99.98%             4.0%           93%
+//          filter on random   lattice ties   nudged reach exact   doubles wrong
+//   side1  100.00%            4.54%          88.1%                76.3%
+//   side2  100.00%            3.26%          91.6%                71.8%
+//   side3  98.19%             2.77%          91.6%                67.7%
+//   side4  99.99%             3.98%          93.6%                65.2%
 //
 // Not every nudged tie needs the exact path: a nudge can move a value far
-// enough from zero, relative to its error bound, for the filter to certify it.
-// And constructing the vertex in doubles got 66% to 77% of them wrong.
+// enough from zero, relative to its error bound, for the filter to certify
+// it. "Doubles wrong" is how often constructing the vertex in doubles gets a
+// nudged tie wrong; the driver only requires it to happen at all.
 struct DriverLimits
 {
     double random_filtered; // at least this fraction of random cases

@@ -350,7 +350,7 @@ inline double approximate(const DynamicExpansion &e)
     return res;
 }
 
-// e, exactly, in fewer components. Shewchuk's Compress (section 2.8,
+// e, exactly, in fewer components. Shewchuk's Compress (section 2.7,
 // Theorem 23).
 //
 // Products are where expansions get long: a product of an m- and an

@@ -46,7 +46,7 @@ template <class E> inline bool well_formed(const E &e)
     return true;
 }
 
-// Two neighbouring components x < y are *adjacent* (Shewchuk, section 2.3)
+// Two neighbouring components x < y are *adjacent* (Shewchuk, section 2.1)
 // when they do not overlap but touch: x's highest set bit is the one just below
 // y's lowest, so that 2x would overlap y.
 inline bool touching(double x, double y)
@@ -69,7 +69,7 @@ template <class E> inline bool nonadjacent(const E &e)
     return well_formed(e);
 }
 
-// Strongly nonoverlapping (Shewchuk, section 2.3): well formed, and where two
+// Strongly nonoverlapping (Shewchuk, section 2.4): well formed, and where two
 // neighbours do touch, both are powers of two, and no component touches both
 // of its neighbours. Weaker than nonadjacent. It is what Fast-Expansion-Sum
 // needs of its inputs. Theorem 13 says it is also what Fast-Expansion-Sum

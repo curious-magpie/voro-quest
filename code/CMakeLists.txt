@@ -162,6 +162,10 @@ if(RVD_BUILD_TESTS)
         "side2     side          side2"
         "side3     side          side3"
         "side4     side          side4"
+        "side1_sos side          side1_sos"
+        "side2_sos side          side2_sos"
+        "side3_sos side          side3_sos"
+        "side4_sos side          side4_sos"
     )
     foreach(entry IN LISTS RVD_KERNEL_SUITES)
         string(REGEX REPLACE " +" ";" entry "${entry}")
@@ -201,4 +205,15 @@ if(RVD_BUILD_TESTS)
         target_compile_options(rvd-tests-${suite} PRIVATE -UNDEBUG)
         add_test(NAME ${suite} COMMAND rvd-tests-${suite})
     endforeach()
+
+    # The measurements the documents quote (tests/measure_side.cpp): built
+    # once all four side predicates exist, never run by ctest. Asserts stay
+    # off here, as in the library's Release build, since it times things.
+    if("side4" IN_LIST RVD_TEST_SUITES)
+        add_executable(rvd-measure-side tests/measure_side.cpp)
+        target_include_directories(rvd-measure-side PRIVATE
+                                   ${RVD_MESH_DEV_DIR}/tests)
+        target_link_libraries(rvd-measure-side PRIVATE rvd_core rvd_flags
+                                                       PkgConfig::GMPXX)
+    endif()
 endif()

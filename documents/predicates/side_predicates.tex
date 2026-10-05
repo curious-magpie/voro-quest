@@ -122,8 +122,11 @@ The $\norm{x}^2$ terms cancel, which leaves
   f_{ia}(x) = 2\,x\cdot(p_a - p_i) - c_a, \qquad c_a = \norm{p_a}^2 - \norm{p_i}^2 + w_i - w_a .
 \end{equation}
 This is the most important fact in this document. \textbf{$f_{ia}$ is an affine function of
-$x$}: a linear part plus a constant. Its zero set is a plane, the bisector. It is negative on
-$i$'s side and positive on $a$'s.
+$x$}: a linear part plus a constant. When $p_a \neq p_i$ its zero set is a plane, the bisector;
+it is negative on $i$'s side and positive on $a$'s. When the two seeds sit at the same position,
+the linear part vanishes and $f_{ia}$ is the constant $w_a - w_i$: its zero set is empty, or all
+of space if the weights are equal too. Such a pair has no bisector, and every vertex defined by
+one is singular (below).
 
 Affine functions commute with affine combinations. If $x = \sum_r \lambda_r q_r$ with
 $\sum_r \lambda_r = 1$, then
@@ -147,10 +150,13 @@ differences only:
 \end{equation}
 using $\norm{u}^2 - \norm{v}^2 = (u - v)\cdot(u + v)$ with $u = q - p_i$ and $v = q - p_a$, so
 that $u - v = p_a - p_i$. This is the form of \code{bisector\_value} in \code{side.h}.
-Translating every input by the same vector changes none of the differences, so the value and its
-error bound depend only on the \emph{shape} of the configuration, not on where it sits. The
-tests check this directly: they move the lattice inputs by $2^{20}$ and by $10^6 + 0.5$, and the
-answers must not change.
+Translating every input by the same vector changes none of the differences in exact arithmetic.
+If the translated coordinates are themselves exact doubles, the computed differences are the same
+doubles too, so the value and its error bound depend only on the \emph{shape} of the
+configuration, not on where it sits. (A translation that rounds the coordinates changes the input,
+and with it, possibly, the answer.) The tests use exactly representable translations: they move
+the small-integer lattice inputs by $2^{20}$ and by $10^6 + 0.5$, and check that the
+\emph{signs} do not change.
 
 \subsection{Degrees}
 
@@ -221,9 +227,11 @@ input. That is the whole trick. Three remarks:
   \item \textbf{The denominator's sign is not fixed.} Listing the corners in another order permutes
     the columns of $M$ and $M_g$ together. Both determinants can flip sign, and their ratio
     cannot. So the predicate must multiply the two signs: it cannot assume $\det M > 0$.
-  \item \textbf{$\det M = 0$ means the vertex does not exist}: the feature is parallel to a bisector,
-    or the bisectors meet it in a line instead of a point, or the feature itself is degenerate
-    (coincident or collinear corners). The clipper never asks about such a vertex, because it
+  \item \textbf{$\det M = 0$ means the equations do not define a unique vertex}: they have no
+    solution, or infinitely many. No solution when the feature is parallel to a bisector it does
+    not lie in; infinitely many when it lies in that bisector, or the bisectors meet it in a line
+    instead of a point; and the feature itself may be degenerate (coincident or collinear corners),
+    or two seeds coincide (\secref{sec:f}). The clipper never asks about such a vertex, because it
     never creates one. The oracle detects exactly the same cases: its linear system has
     determinant $\det M$, as \secref{ssec:dexpl} shows for \code{side2}.
   \item \textbf{$x$ does not have to lie inside the feature.} The lemma works on the whole line or
@@ -313,7 +321,8 @@ Cost: four $f$ evaluations, one $2\times2$ determinant, one difference.
 
 By~\eqref{eq:affine}, $a_1 - a_0 = f_{ij}(q_1) - f_{ij}(q_0) = 2\,(q_1 - q_0)\cdot(p_j - p_i)$:
 the constants cancel. So $D = 0$ exactly when the edge is perpendicular to $p_j - p_i$, which
-means parallel to the bisector, and then there is no crossing. This is also exactly the single
+means parallel to the bisector (or $p_j = p_i$). Then there is no single crossing: none if the
+edge's line misses the bisector, a whole line of them if it lies inside it. This is also exactly the single
 coefficient of the oracle's $1\times1$ system: the same quantity, written differently.
 
 This also gives an alternative way to compute $D$, straight from coordinates. Its value is
@@ -602,12 +611,19 @@ sound for any formula, including these new ones, with no hand derivation of erro
 
 \begin{enumerate}
   \item Evaluate $N$ and $D$ with \code{Bounded}.
-  \item If \code{certain\_sign} decides \emph{both}, the answer is their product (with the extra
-    minus for \code{side4}). Count one \code{filtered} call. This includes a certain-zero $N$ with
-    a certain non-zero $D$: an exact tie, decided by the filter, answer 0.
+  \item If \code{certain\_sign} says $N$ is certainly 0, the answer is 0 whatever $D$ is: $D \neq 0$
+    is the precondition, so $D$'s sign is not needed. Count one \code{filtered} call. (This is
+    what the code does; it does not certify $D$ first.)
+  \item Otherwise, if \code{certain\_sign} decides \emph{both}, the answer is the product of the
+    two signs. Count one \code{filtered} call.
   \item Otherwise, evaluate $N$ and $D$ exactly with \code{DynamicExpansion}, take the sign of each
-    (the sign of the largest component), and return the product. Count one \code{exact} call.
+    (the sign of the largest component), and return their product. Count one \code{exact} call.
 \end{enumerate}
+\noindent\textbf{The \code{side4} minus.} In this document \code{side4}'s $N$ is $\det_4$ itself,
+so its answer is $-\sgn N\cdot\sgn D$. The code folds the minus into the numerator instead:
+\code{side4\_terms} returns $\{-\det_4,\ \det_3\}$, and the decision above, with no extra minus,
+is then the same for all four predicates.
+
 Two refinements are possible later, and neither is needed for correctness. If the filter
 certified $D$ but not $N$, only $N$ needs the exact path. And the $f$ values could be computed
 once and shared between $N$ and $D$, which the minor structure of \code{side3} already does.
@@ -617,7 +633,7 @@ once and shared between $N$ and $D$, which the minor structure of \code{side3} a
 on the orientation of $p_i, p_j, p_k, p_l$), which is arbitrary. So it is part of the answer.
 
 \paragraph{The precondition.} $D \neq 0$. If the exact $D$ is zero, the caller asked about a
-vertex that does not exist. That is a bug in the caller, and an assertion should say so. The
+vertex its equations do not define uniquely. That is a bug in the caller, and an assertion should say so. The
 tests keep assertions on in every build type.
 
 \subsection{Why \texorpdfstring{\code{DynamicExpansion}}{DynamicExpansion}}
@@ -628,7 +644,9 @@ but the bounds multiply with the degree. \code{side2} would need about ten thous
 and \code{side3} millions, far more than a stack holds. Those are worst cases. The real length of
 an expansion depends on how many bits the value actually has, which is usually far fewer, and
 known only once the value is computed. \code{DynamicExpansion} keeps its first 32 components
-inline and moves to the heap beyond that, so short exact evaluations never allocate.
+inline and moves to the heap beyond that. An exact evaluation therefore avoids the heap only if
+\emph{every intermediate value} stays within 32 components, not merely the final result:
+products and the merge in a sum can be longer than what is left at the end.
 
 \subsection{Counters}
 
@@ -670,27 +688,32 @@ nudged ties & a lattice tie with one non-zero coordinate moved by one ulp. Tiny 
 
 \subsection{Thresholds}
 
-These were measured on a reference implementation when the suites were written, and set below
-what it reached:
+The required values are the suites' thresholds. They were set on 1 October 2026 below what a
+throwaway reference implementation reached (with a different random seed, whose results were not
+kept). The ``measured'' values are those of the actual \code{side.h}, on 5 October 2026, on the
+suites' own input families and seeds, from \code{build/rvd-measure-side}
+(\code{tests/measure\_side.cpp}; setup and timings in \code{documents/arithmetic}, section 9).
+They are deterministic, so running the program again reproduces them exactly.
 
 \begin{center}
-\begin{tabular}{@{}lccc@{}}
+\begin{tabular}{@{}lcccc@{}}
 \toprule
- & filter on random & lattice ties & nudged reaching exact \\
- & (required / reached) & (reached) & (required / reached) \\
+ & filter on random & lattice ties & nudged reaching exact & doubles wrong \\
+ & (required / measured) & (measured) & (required / measured) & (measured) \\
 \midrule
-\code{side1} & 99\% / 100\%   & 4.8\% & 80\% / 89\% \\
-\code{side2} & 99\% / 100\%   & 3.1\% & 80\% / 92\% \\
-\code{side3} & 95\% / 98.1\%  & 2.8\% & 80\% / 91\% \\
-\code{side4} & 99\% / 99.98\% & 4.0\% & 80\% / 93\% \\
+\code{side1} & 99\% / 100.00\% & 4.54\% & 80\% / 88.1\% & 76.3\% \\
+\code{side2} & 99\% / 100.00\% & 3.26\% & 80\% / 91.6\% & 71.8\% \\
+\code{side3} & 95\% / 98.19\%  & 2.77\% & 80\% / 91.6\% & 67.7\% \\
+\code{side4} & 99\% / 99.99\%  & 3.98\% & 80\% / 93.6\% & 65.2\% \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \noindent
 Not every nudged tie needs the exact path. A nudge can move a value far enough from zero,
-relative to its error bound, for the filter to certify it. Constructing the vertex in doubles got
-66\% to 77\% of them wrong.
+relative to its error bound, for the filter to certify it. ``Doubles wrong'' is the share of
+nudged ties on which constructing the vertex in doubles, then comparing the two power distances,
+gets the sign wrong; the suites only require it to be above zero.
 
 % ======================================================================================
 \section{A preview: ties}\label{sec:ties}
@@ -708,8 +731,8 @@ $\varepsilon$s, whose coefficients are smaller determinants of the same family, 
 replaced by ones. When the true value is 0, the sign is that of the first non-zero coefficient,
 in order of priority. For \code{side1} this is simple: $f_{im}(q) = 0$ becomes
 $\varepsilon_m - \varepsilon_i$, whose sign is decided by which index is smaller. For the others
-the chain always ends at the vertex's own $D$, which is non-zero because the vertex exists. The
-details will be worked out at that step. Nothing in this document's formulas changes, but the
+the chain always ends at the vertex's own $D$, which is non-zero by the precondition. The details
+are worked out in \code{documents/arithmetic/arithmetic.tex}, section 8. Nothing in this document's formulas changes, but the
 formulas will be reused for the coefficients, which is one more reason to write them cleanly.
 
 % ======================================================================================
@@ -722,7 +745,8 @@ formulas will be reused for the coefficients, which is one more reason to write 
   \item \code{side3}: three minors $\mu_r$, shared by $N$ and $D$; cofactor signs $+,-,+$.
   \item \code{side4}: coordinates relative to $p_i$; $c_a = \norm{d_a}^2 + w_i - w_a$; cofactor
     signs $-,+,-,+$ on the column of $c$s; \code{orient3d} is $-T$.
-  \item Filter: both $N$ and $D$ must be certain. A certain-zero $N$ is a valid filtered answer.
+  \item Filter: an answer needs both $N$ and $D$ certain, or $N$ certainly zero (then the answer is
+    0, by the precondition $D \neq 0$).
   \item One counter increment per call, in the right counter.
   \item Assert $D \neq 0$ on the exact path.
   \item A suite joins the build as soon as \code{sideK(} appears in \code{side.h}. From then on it

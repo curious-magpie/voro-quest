@@ -14,8 +14,8 @@
 //
 // The idea and the algorithms are Shewchuk's (Adaptive precision floating-
 // point arithmetic and fast robust geometric predicates, Discrete &
-// Computational Geometry 18, 1997, sections 2.3 to 2.6). The theorem numbers
-// below are his; check them against the paper when citing.
+// Computational Geometry 18, 1997, sections 2.1 to 2.7 and appendix A). The
+// theorem numbers below are his, checked against the paper.
 //
 // --- the invariant ---
 //
@@ -341,7 +341,7 @@ template <std::size_t N> double approximate(const Expansion<N> &e)
 //
 //   round-to-nearest-even, as everything in eft.h assumes;
 //
-//   strongly nonoverlapping inputs (Shewchuk, section 2.3): nonoverlapping,
+//   strongly nonoverlapping inputs (Shewchuk, section 2.4): nonoverlapping,
 //   and where two neighbouring components touch -- one's highest bit just
 //   below the other's lowest -- both are powers of two, and no component
 //   touches both its neighbours. grow(), sum() and scale() produce more than

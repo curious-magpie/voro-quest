@@ -12,6 +12,7 @@
 // `orient2d_counts() = PredicateCounts{};`.
 struct PredicateCounts
 {
-    uint64_t filtered = 0; // decided by the filter
-    uint64_t exact = 0;    // needed the exact path
+    uint64_t filtered = 0;  // decided by the filter
+    uint64_t exact = 0;     // needed the exact path
+    uint64_t perturbed = 0; // an exact tie, broken by symbolic perturbation
 };

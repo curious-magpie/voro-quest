@@ -45,11 +45,16 @@
 //   volatile.
 //
 //   Finite inputs, and these ranges:
-//     two_sum, fast_two_sum   exact unless the sum overflows. Gradual
-//                             underflow keeps sums exact even among subnormals.
-//     two_product             exact while the error term stays out of the
-//                             subnormal range: |a * b| >= 2^-969 (that is,
-//                             2^(-1022 + 53)), or a * b == 0.
+//     two_sum, fast_two_sum   exact unless the sum overflows: with gradual
+//                             underflow, the error of a sum is always a
+//                             double, even among subnormals.
+//     two_product             exact when the error a * b - hi is a double,
+//                             which can fail near underflow. Sufficient, and
+//                             what the kernel relies on: |a * b| >= 2^-969
+//                             (that is, 2^(-1022 + 53)), or a * b == 0. The
+//                             condition is on every product a formula makes,
+//                             not only its inputs: two normal inputs near
+//                             2^-600 already multiply to an underflow.
 //     split                   overflows when |a| > 2^996, about 6.7e299:
 //                             a * (2^27 + 1) must stay finite.
 //     two_product_dekker      both of the above, for a and for b.
@@ -75,14 +80,17 @@
 //
 // --- "nonoverlapping", which expansions depend on ---
 //
-// Two doubles x and y are nonoverlapping (Shewchuk, section 2.2) when the
+// Two doubles x and y are nonoverlapping (Shewchuk, section 2.1) when the
 // lowest set bit of the larger is above the highest set bit of the smaller:
 // they cover disjoint ranges of binary digits, as 1000 and 11 do. Every {hi,
-// lo} returned here is nonoverlapping, with the stronger property that
-// |lo| <= ulp(hi) / 2, so hi + lo rounds back to hi. That is what lets an
-// expansion -- a list of such parts -- be read off: its sign is the sign of its
-// largest part, and its largest part is a good approximation of the whole.
-// tests/test_eft.cpp checks exactly this, for every function here.
+// lo} returned here is nonoverlapping. The sums and products (two_sum,
+// fast_two_sum, two_product, two_product_dekker) have the stronger property
+// |lo| <= ulp(hi) / 2, so hi + lo rounds back to hi. split does not: its lo
+// is bounded by half a unit of hi's 26th bit, which can be about 2^27 times
+// ulp(hi) / 2 (see split below). Nonoverlap is what lets an expansion -- a
+// list of such parts -- be read off: its sign is the sign of its largest
+// part. (Its value is not its largest part, in general: see expansion.h.)
+// tests/test_eft.cpp checks these properties, for every function here.
 #pragma once
 
 constexpr double kSplitter = 134217729.0; // 2^27 + 1
@@ -161,9 +169,11 @@ inline TwoTerm two_sum(double a, double b)
 // product.
 //
 // std::fma is exact by the C++ standard on every platform, but only fast where
-// the CPU has an fma instruction (every x86-64 since Haswell, every 64-bit
-// ARM). Elsewhere it is emulated in software, slowly -- which is why
-// two_product_dekker is kept, and tested to agree bit for bit.
+// the CPU has an fma instruction: most x86-64 since Intel's Haswell and AMD's
+// Piledriver, and every 64-bit ARM -- but not, for instance, the Pentium and
+// Celeron parts of those generations or several Atom cores. Elsewhere it is
+// emulated in software, slowly -- which is why two_product_dekker is kept,
+// and tested to give the same hi and lo (compared with ==).
 inline TwoTerm two_product(double a, double b)
 {
     TwoTerm res;
