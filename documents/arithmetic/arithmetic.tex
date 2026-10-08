@@ -749,28 +749,105 @@ of \secref{ssec:coefs}, not ``the smaller of $i$ and $m$''.
 
 \subsection{Why perturb the weights}
 
-Perturbing coordinates would make each $f_{ia}$ a polynomial in the $\varepsilon$ with products of
-them, and the sign of the first nonzero term would need many terms. Perturbing weights shifts each
-$f$ value by a \emph{constant}, and determinants are multilinear: with each row of a determinant
-shifted by a multiple of the row of ones,
+\paragraph{Weights shift; coordinates bend.} A tie in a side predicate is always a tie between
+two power distances, and a weight is exactly what moves a power distance: $w_a + \varepsilon_a$
+lowers $\pi_a$ by $\varepsilon_a$ at every point, so $f_{ia}$ shifts by the constant
+$\varepsilon_a - \varepsilon_i$. Perturbing a coordinate instead, $p_a + \delta_a$, gives
+\[
+  \norm{x - p_a - \delta_a}^2 = \norm{x - p_a}^2 - 2\,(x - p_a)\cdot\delta_a + \norm{\delta_a}^2 :
+\]
+a change that depends on $x$, second-order terms, and three infinitesimals per seed. Through a
+determinant of degree 6 this becomes a polynomial in many infinitesimals, with products and
+powers of them; its sign needs an order on all those monomials and a long sequence of minors,
+worked out for each predicate, as in Edelsbrunner and M\"ucke's original scheme. The first-order
+terms can even all vanish: if $q = p_i = p_m$ and $w_i = w_m$, \code{side1}'s perturbed value is
+$\norm{\delta_i}^2 - \norm{\delta_m}^2$, decided only at second order.
+
+\paragraph{Constant shifts keep it linear.} Take \code{side3} as the example; \code{side2} is the
+same one size smaller. Its numerator is a $3\times3$ determinant whose rows are the values of
+three $f$ functions at the triangle's corners $q_0, q_1, q_2$:
+\[
+  N = \det(M;\,J;\,K) =
+  \begin{vmatrix} m_0 & m_1 & m_2\\ j_0 & j_1 & j_2\\ k_0 & k_1 & k_2 \end{vmatrix},
+  \qquad
+  D = \det(\mathbf 1;\,J;\,K) =
+  \begin{vmatrix} 1 & 1 & 1\\ j_0 & j_1 & j_2\\ k_0 & k_1 & k_2 \end{vmatrix}.
+\]
+The symbols:
+\begin{itemize}
+  \item $M = (m_0, m_1, m_2)$ is a \emph{row} of three numbers, $m_r = f_{im}(q_r)$; likewise
+    $J = (j_0, j_1, j_2)$ with $j_r = f_{ij}(q_r)$, and $K = (k_0, k_1, k_2)$ with
+    $k_r = f_{ik}(q_r)$;
+  \item $\mathbf 1 = (1, 1, 1)$ is the row of ones;
+  \item $\det(X;\,Y;\,Z)$ is the $3\times3$ determinant with rows $X$, $Y$, $Z$, top to bottom;
+  \item $a = \varepsilon_m - \varepsilon_i$, $b = \varepsilon_j - \varepsilon_i$,
+    $c = \varepsilon_k - \varepsilon_i$ are single numbers (infinitesimal), not rows.
+\end{itemize}
+Under the perturbation every value of $f_{im}$ grows by the same number $a$, whichever corner it
+is taken at, so the row $M$ becomes $M + a\mathbf 1 = (m_0 + a,\ m_1 + a,\ m_2 + a)$; likewise
+$J$ becomes $J + b\mathbf 1$ and $K$ becomes $K + c\mathbf 1$. Two facts about determinants then
+do all the work:
+\begin{itemize}
+  \item a determinant is \emph{linear in each row separately}: with the other rows fixed, for any
+    number $t$,
+    \[
+      \det(X + tY;\,\dots) = \det(X;\,\dots) + t\det(Y;\,\dots);
+    \]
+    for example $\det(M + a\mathbf 1;\,J;\,K) = \det(M;\,J;\,K) + a\det(\mathbf 1;\,J;\,K)$;
+  \item a determinant with \emph{two equal rows} is 0.
+\end{itemize}
+Splitting all three rows this way gives eight terms. Every term that keeps $\mathbf 1$ in two
+rows or more vanishes, for example $ab\det(\mathbf 1;\,\mathbf 1;\,K) = 0$, and four are left:
 \[
   \det(M + a\mathbf 1;\ J + b\mathbf 1;\ K + c\mathbf 1)
-  = \det(M;J;K) + a\det(\mathbf 1;J;K) + b\det(M;\mathbf 1;K) + c\det(M;J;\mathbf 1),
+  = \det(M;J;K) + a\det(\mathbf 1;J;K) + b\det(M;\mathbf 1;K) + c\det(M;J;\mathbf 1).
 \]
-since every term with two rows of ones vanishes. So:
+No term has a product of two $\varepsilon$s: the perturbed numerator is linear in them. The same
+splitting of $D = \det(\mathbf 1;\, J + b\mathbf 1;\, K + c\mathbf 1)$ leaves only
+$\det(\mathbf 1;\,J;\,K)$, since its first row is already $\mathbf 1$. (\code{side4} is built
+differently but behaves the same: its weights all sit in one \emph{column} of
+$\det\nolimits_4$, the column of the $c_a$, each $c_a$ gains $\varepsilon_i - \varepsilon_a$, and
+a determinant is linear in each column too; $\det\nolimits_3$ has no weights at all.) So:
 \keybox{\small
 \begin{itemize}
-  \item the \textbf{denominator never changes} (its first row is already the ones; the other
-    shifts produce determinants with two rows of ones), so the vertex's equations have a unique
-    solution in the perturbed input exactly when they do in the real one. (Whether that solution
-    lies inside the feature, or inside the cell, is a different question, answered by other
-    predicates, and can change.)
+  \item the \textbf{denominator never changes}: for \code{side2} and \code{side3} its first row is
+    already the ones, and the other shifts produce determinants with two rows of ones;
+    \code{side4}'s $\det\nolimits_3$ contains no weights at all. So the vertex's equations have a
+    unique solution in the perturbed input exactly when they do in the real one. (Whether that
+    solution lies inside the feature, or inside the cell, is a different question, answered by
+    other predicates, and can change.)
   \item the \textbf{numerator becomes linear} in the $\varepsilon$: no products of them, so its
     perturbed sign is the first nonzero of at most five coefficients;
   \item the \textbf{coefficient of $\varepsilon_m$ is $\pm D$}, the vertex's own denominator,
     which is nonzero by the predicate's precondition (a unique vertex). So the chain of
     coefficients always ends, and no perturbed side predicate on a well-defined vertex is ever 0.
 \end{itemize}}
+
+\paragraph{What weights do not remove.} Because denominators do not change, degeneracies that do
+not involve power distances stay: an edge parallel to a bisector (\code{side2}), two bisectors
+meeting a triangle's plane in a line (\code{side3}), four coplanar seeds (\code{side4}). Perturbing
+coordinates would remove those; here they are preconditions instead, $D \neq 0$, asserted on the
+exact path. That is enough because of the rule a clipper follows (the ones of DESIGN.tex,
+sections 7.2--7.3, classify every vertex with a side predicate): a new vertex is made only on an
+edge between a kept vertex and a removed one, so only where the edge's endpoints are
+\emph{strictly} on opposite sides of the new bisector -- strictly, because no perturbed side
+predicate is 0. The edge lies on a line fixed by the domain feature and by earlier bisectors. A weight shift moves each bisector parallel to
+itself, so that line keeps its direction, and along it the perturbed $f_{im}$ is affine with the
+same slope as the real one. Opposite signs at the two endpoints mean that slope is not zero: the
+line crosses the bisector in exactly one point, the new vertex's system has a unique solution, and
+its $D \neq 0$. So every vertex the clipper creates meets the precondition. This argues about code
+that is not written yet; the assert on $D$ is what will check it.
+
+\paragraph{Other predicates.} \code{orient2d} and \code{orient3d} contain no weights, so the
+weight perturbation cannot break their ties. \code{in\_power\_sphere} does contain them, all in one
+column, so its perturbation is linear too, but its coefficients are $\pm$\code{orient3d} of four of
+its five points, which can themselves be 0. None of them has to decide a tie in the current plan:
+clipping uses only the side predicates, and \code{orient3d} serves validation, where 0 is an
+answer. If one ever must (the optional Delaunay of DESIGN.tex, section 7.1.3), the coordinates have to
+be perturbed as well, by infinitesimals infinitely smaller than every weight's. The side predicates
+are then unchanged -- their first nonzero term is always a weight term, at worst $\pm D$ for
+$\varepsilon_m$, which outweighs every coordinate term -- and all predicates still answer about one
+and the same imaginary input.
 
 \subsection{The coefficients, predicate by predicate}\label{ssec:coefs}
 

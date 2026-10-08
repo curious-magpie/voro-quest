@@ -173,6 +173,197 @@ degree 2, like a squared coordinate. Degrees matter for two practical reasons:
 % ======================================================================================
 \section{The one lemma behind \texorpdfstring{\code{side1}}{side1} to \texorpdfstring{\code{side3}}{side3}}\label{sec:lemma}
 
+This section builds the lemma up in four steps, on an edge and with numbers, and states it in
+general only at the end. The one idea to keep:
+
+\keybox{\small An affine function's value at a point is the \emph{same weighted average} of its
+values at the corners as the point is of the corners. The weights are fixed by the vertex's
+conditions, which are linear equations in them; Cramer's rule solves those as ratios of
+determinants, and so $g(x)$ becomes a ratio of determinants of corner values.}
+
+\subsection{Step 1: what we want, and what we may use}
+
+The vertex $x$ is defined by conditions, for example ``on the edge $q_0q_1$, and on the bisector
+of $i$ and $j$''. Being on that bisector means having the same power distance to both seeds,
+$\pi_i(x) = \pi_j(x)$, which is $f_{ij}(x) = 0$. So that equation is not something to prove about
+$x$: it is what picks $x$ out. On the edge, $f_{ij} < 0$ on $i$'s part and $f_{ij} > 0$ on $j$'s,
+and $x$ is where the boundary between the two cells crosses it (an E vertex). We want the sign of $g(x)$, where $g = f_{im}$, without ever computing $x$:
+a computed $x$ is rounded (\secref{sec:question}). What we can compute exactly are the values of
+any $f$ at the \emph{corners}, since the corners are inputs. So the question is: can $g(x)$ be
+written using corner values only? It can, because every $f$ is affine.
+
+\subsection{Step 2: a point as a weighted average of corners}
+
+Every point of the line through $q_0$ and $q_1$ can be written
+\[
+  x = \lambda_0\, q_0 + \lambda_1\, q_1, \qquad \lambda_0 + \lambda_1 = 1 .
+\]
+The two numbers $\lambda_0, \lambda_1$ are the \emph{barycentric coordinates} of $x$: its weights
+on the corners. $(1,0)$ is $q_0$, $(0,1)$ is $q_1$, $(\tfrac12,\tfrac12)$ is the midpoint, and a
+negative weight means $x$ lies on the line but outside the segment. (With $\lambda_1 = t$ this is
+the familiar $x = (1-t)\,q_0 + t\,q_1$.) On a triangle there are three weights, again summing to
+1; at a single corner there is one, $\lambda_0 = 1$.
+
+\subsection{Step 3: affine functions keep the weights}
+
+By \eqref{eq:affine}, every $f_{ia}$ has the form $f(x) = n\cdot x - c$, with a fixed vector $n$
+and a fixed number $c$. Then
+\[
+  f(\lambda_0 q_0 + \lambda_1 q_1)
+  = \lambda_0\, n\cdot q_0 + \lambda_1\, n\cdot q_1 - (\lambda_0 + \lambda_1)\,c
+  = \lambda_0 f(q_0) + \lambda_1 f(q_1),
+\]
+where the middle step wrote $c$ as $(\lambda_0 + \lambda_1)\,c$, which is allowed only because the
+weights sum to 1. This is \eqref{eq:affcomb}: \textbf{the value at $x$ is the same weighted
+average of the corner values}. Along the edge, every $f$ is a straight line
+(figure~\ref{fig:lemma}).
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[x=8cm, y=0.2cm, every node/.style={font=\small},
+    pt/.style={circle, fill, inner sep=1.3pt}]
+  \draw[thick] (0,0) -- (1,0);
+  \node[above left] at (0,0) {$q_0$};
+  \node[below right] at (1,0) {$q_1$};
+  \draw (0.5,-0.8) -- (0.5,0.8);
+  \node[below left] at (0.5,-0.6) {midpoint};
+  \draw[blue!70!black, thick] (0,-15) -- (1,9);
+  \draw[red!70!black, thick] (0,-3.25) -- (1,4.75);
+  \node[pt, blue!70!black] at (0,-15) {};
+  \node[left, blue!70!black] at (0,-15) {$f_{ij}$: $a_0 = -15$};
+  \node[pt, blue!70!black] at (1,9) {};
+  \node[right, blue!70!black] at (1,9) {$f_{ij}$: $a_1 = 9$};
+  \node[pt, red!70!black] at (0,-3.25) {};
+  \node[left, red!70!black] at (0,-3.25) {$f_{im}$: $b_0 = -3.25$};
+  \node[pt, red!70!black] at (1,4.75) {};
+  \node[right, red!70!black] at (1,4.75) {$f_{im}$: $b_1 = 4.75$};
+  \draw[dashed] (0.625,-16) -- (0.625,11);
+  \node[pt] at (0.625,0) {};
+  \node[below right] at (0.625,-0.4) {$x$};
+  \node[above] at (0.625,11) {$f_{ij}(x) = 0$};
+  \node[pt, red!70!black] at (0.625,1.75) {};
+  \draw[red!70!black, thin] (0.625,1.75) -- (0.42,8);
+  \node[above, red!70!black] at (0.42,8) {$f_{im}(x) = 1.75$};
+\end{tikzpicture}
+\caption{The example of Step 4, along the edge from $q_0$ to $q_1$ (the horizontal axis is
+$t$, from 0 at $q_0$ to 1 at $q_1$). Each $f$ is a straight line through its two corner values.
+The vertex $x$ is where the blue line crosses zero, at $t = a_0/(a_0 - a_1) = 0.625$: not the
+midpoint, in general. The red line's height there is $f_{im}(x)$, the answer.}
+\label{fig:lemma}
+\end{figure}
+
+\subsection{Step 4: find the weights, then read off \texorpdfstring{$g(x)$}{g(x)}}
+
+Name the corner values as \code{side2} does: $a_r = f_{ij}(q_r)$ for the bisector that defines
+the vertex, $b_r = f_{im}(q_r)$ for the bisector being tested. By Step 3, the two conditions on
+$x$ -- its weights sum to 1, and $f_{ij}(x) = 0$ -- are two \emph{linear} equations in the two
+unknown weights:
+\[
+  \begin{aligned}
+    \lambda_0 + \lambda_1 &= 1\\
+    a_0\lambda_0 + a_1\lambda_1 &= 0
+  \end{aligned}
+  \qquad\text{that is}\qquad
+  \underbrace{\begin{pmatrix} 1 & 1\\ a_0 & a_1 \end{pmatrix}}_{M}
+  \begin{pmatrix} \lambda_0\\ \lambda_1 \end{pmatrix}
+  = \begin{pmatrix} 1\\ 0 \end{pmatrix}.
+\]
+\emph{Cramer's rule} solves a square system $M\lambda = e$ whose determinant is not zero: each
+unknown $\lambda_r$ is the determinant of $M$ with its column $r$ replaced by $e$, divided by
+$\det M$. Here
+\[
+  \lambda_0 = \frac{\begin{vmatrix} 1 & 1\\ 0 & a_1 \end{vmatrix}}{\det M}
+            = \frac{a_1}{a_1 - a_0},
+  \qquad
+  \lambda_1 = \frac{\begin{vmatrix} 1 & 1\\ a_0 & 0 \end{vmatrix}}{\det M}
+            = \frac{-a_0}{a_1 - a_0},
+  \qquad
+  \det M = a_1 - a_0 .
+\]
+Now Step 3 once more, for $g$: substitute the two weights, then add the two fractions, which
+share the denominator $a_1 - a_0$:
+\begin{align*}
+  g(x) &= b_0\lambda_0 + b_1\lambda_1
+        = b_0\,\frac{a_1}{a_1 - a_0} + b_1\,\frac{-a_0}{a_1 - a_0}
+        = \frac{b_0 a_1 - b_1 a_0}{a_1 - a_0}
+        = \frac{\begin{vmatrix} b_0 & b_1\\ a_0 & a_1 \end{vmatrix}}
+               {\begin{vmatrix} 1 & 1\\ a_0 & a_1 \end{vmatrix}} .
+\end{align*}
+The last step only recognises two $2\times2$ determinants, by the rule
+$\begin{vsmallmatrix} p & q\\ r & s \end{vsmallmatrix} = ps - qr$: the top one is
+$b_0a_1 - b_1a_0$, and the bottom one is $1\cdot a_1 - 1\cdot a_0 = a_1 - a_0 = \det M$.
+
+\textbf{The numerator is $M$ with its row of ones replaced by $g$'s corner values}, although
+Cramer's rule replaces \emph{columns}. (The \emph{cofactor} $C_{rc}$ of the entry in row $r$,
+column $c$ is $(-1)^{r+c}$ times the determinant left when that row and that column are deleted;
+for $M$, $C_{00} = +a_1$ and $C_{01} = -a_0$. Expanding a determinant along a row or a column
+means summing each entry of it times its cofactor.) Both happen, at different moments:
+\begin{itemize}
+  \item \emph{Columns, one at a time, to get each weight.} For $\lambda_r$, column $r$ of $M$ is
+    replaced by the right-hand side $(1, 0)$: a 1 at the top, 0 below. Expanding that determinant
+    along the replaced column leaves a single term, 1 times the cofactor of its top entry, and a
+    cofactor ignores its own row and column. So each Cramer numerator is the cofactor $C_{0r}$ of
+    $M$'s \emph{top-row} entry in column $r$: here $C_{00} = a_1$ and $C_{01} = -a_0$, as above.
+  \item \emph{The row, once, when the weights are combined.} Then
+    $g(x) = b_0\lambda_0 + b_1\lambda_1 = (b_0 C_{00} + b_1 C_{01})/\det M$, and
+    $b_0 C_{00} + b_1 C_{01}$ is exactly the expansion along its first row of a determinant whose
+    first row is $(b_0, b_1)$. The cofactors $C_{00}$, $C_{01}$ do not involve the first row, so
+    the other rows of that determinant are $M$'s: it is $\begin{vsmallmatrix} b_0 & b_1\\ a_0 & a_1
+    \end{vsmallmatrix} = b_0a_1 - b_1a_0$.
+\end{itemize}
+It works out this way because the right-hand side is nonzero only in the top row, the row of
+ones: that is what makes every Cramer numerator a cofactor of that one row.
+
+\paragraph{Where $x$ falls.} With $x = (1-t)\,q_0 + t\,q_1$, the weights above give
+$t = \lambda_1 = a_0/(a_0 - a_1)$: $x$ is where the straight line through $f_{ij}$'s two corner
+values crosses zero. That is the midpoint only when $a_0 = -a_1$. If $a_0$ and $a_1$ have the same
+sign, $t < 0$ or $t > 1$: $x$ is on the edge's line, but outside the edge. The formula holds there
+too, since nothing above used $0 \le t \le 1$. A clipper, though, only creates a vertex on an edge
+whose corner values $a_0$, $a_1$ have opposite signs, so the vertices it asks about have
+$0 < t < 1$.
+
+\paragraph{With numbers.} Take $p_i = (0,0,0)$, $p_j = (3,0,0)$, $p_m = (1, 0.5, 0)$, no weights,
+and the edge from $q_0 = (-1,0,0)$ to $q_1 = (3,0,0)$. From the power distances,
+$a_0 = 1 - 16 = -15$, $a_1 = 9 - 0 = 9$, $b_0 = 1 - 4.25 = -3.25$ and $b_1 = 9 - 4.25 = 4.75$.
+Then $\det M = 24$, the weights are $\lambda = (\tfrac38, \tfrac58)$, so $t = 0.625$ and
+$x = (1.5, 0, 0)$ -- on the bisector of $p_i$ and $p_j$, the plane of points whose first
+coordinate is 1.5, and not at the edge's midpoint $(1, 0, 0)$. Then
+\[
+  f_{im}(x) = b_0\lambda_0 + b_1\lambda_1
+            = (-3.25)\cdot\tfrac38 + (4.75)\cdot\tfrac58
+            = \frac{(-3.25)(9) - (4.75)(-15)}{24} = \frac{42}{24} = 1.75 .
+\]
+Directly: $\pi_i(x) = 2.25$ and $\pi_m(x) = 0.25 + 0.25 = 0.5$, a difference of $1.75$. Positive:
+$x$ is on $m$'s side. The predicate never divides; it takes $\sgn(42)\cdot\sgn(24) = +1$.
+
+\paragraph{When $\det M = 0$.} Then $a_1 = a_0$: $f_{ij}$ has the same value at both ends, so it
+is constant along the edge. Either it is never zero (the edge misses the bisector) or it is zero
+everywhere (the edge lies in it). Either way there is no single vertex to ask about.
+
+\subsection{The same pattern for \texorpdfstring{\code{side1}}{side1} and \texorpdfstring{\code{side3}}{side3}}
+
+Nothing in Step 4 depended on the edge. A feature with $k+1$ corners gives $k+1$ weights; the
+vertex needs $k$ bisector conditions to pin it down; with the sum condition that is a square
+system of size $k+1$:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}l l l c L@{}}
+\toprule
+ & feature & conditions on the weights & $M$ & $f_{im}(x)$ \\
+\midrule
+\code{side1} & a corner $q_0$ & $\lambda_0 = 1$ & $1\times1$ & $f_{im}(q_0)$: no determinant \\
+\code{side2} & an edge & sum 1, $f_{ij}(x) = 0$ & $2\times2$ & ratio of $2\times2$ determinants \\
+\code{side3} & a triangle & sum 1, $f_{ij}(x) = 0$, $f_{ik}(x) = 0$ & $3\times3$ & ratio of
+  $3\times3$ determinants \\
+\bottomrule
+\end{tabularx}
+\end{center}
+Each time, $M$'s first row is the row of ones (the sum condition), each further row holds one
+defining bisector function's corner values, and the numerator is $M$ with its first row replaced
+by $f_{im}$'s corner values. The lemma below is Steps 2 to 4 for any $k$, written once.
+
+\subsection{The lemma in general}
+
 \begin{lemma}[Cramer for affine functions]\label{lem:cramer}
 Let $q_0, \dots, q_k$ be the corners of a domain feature ($k = 0, 1, 2$). Let
 $h_1, \dots, h_k$ and $g$ be affine functions. Let $x$ be the point of the feature's affine
